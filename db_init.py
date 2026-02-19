@@ -108,6 +108,20 @@ def update_session_model(session_id: uuid, model: str):
         return None
 
 
+def get_sessions():
+    try:
+        response = (
+            supabase.table("sessions")
+            .select("title, session_id")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return response.data
+    except Exception as E:
+        print(E)
+        return []
+
+
 def update_message_state(message_id: int, state: str):
     try:
         response = (
