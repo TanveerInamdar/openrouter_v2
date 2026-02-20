@@ -8,3 +8,4 @@ checker.py
 next_steps.md
 __pycache__/
 *.pyc
+.cursor
