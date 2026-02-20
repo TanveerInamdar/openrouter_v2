@@ -13,7 +13,7 @@ def get_response(message):
       "Content-Type": "application/json",
     },
     json={
-      "model": "google/gemma-3n-e2b-it:free",
+      "model": "openai/gpt-4.1-mini",
       "messages" : message,
     }
   )
@@ -44,7 +44,7 @@ def new_chat(message:str):
       "Content-Type": "application/json",
     },
     json={
-      "model": "openai/gpt-oss-20b:free",
+      "model": "openai/gpt-4.1-mini",
       "messages": messages,
     }
   )

@@ -7,13 +7,6 @@ url: str = os.getenv("SUPABASE_URL")
 key: str = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 random_uuid = uuid.uuid4()
-response = (
-    supabase.table("sessions")
-    .select("model")
-    .execute()
-)
-print(response)
-
 
 def send_message_to_db(session_id: uuid, role:str, message: str, state:str):
     try:
