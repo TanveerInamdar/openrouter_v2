@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenRouter Chat</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2: #242424;
+      --border: #2e2e2e;
+      --accent: #7c6af7;
+      --accent-hover: #9585ff;
+      --text: #e8e8e8;
+      --text-muted: #888;
+      --user-bubble: #2a2560;
+      --assistant-bubble: #1e1e1e;
+      --sidebar-w: 260px;
+    }
+
+    html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+
+    /* ── Layout ── */
+    .app { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: 18px 16px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-header h2 { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: 0.3px; }
+    .sidebar-header p  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .btn-new-chat {
+      display: flex; align-items: center; gap: 8px;
+      margin: 12px 12px 0;
+      padding: 9px 14px;
+      background: var(--accent);
+      color: #fff;
+      border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .btn-new-chat:hover { background: var(--accent-hover); }
+    .btn-new-chat svg { flex-shrink: 0; }
+
+    .model-select-wrap {
+      padding: 12px 12px 0;
+    }
+    .model-select-wrap label { font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 5px; }
+    .model-select-wrap select {
+      width: 100%;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px;
+    }
+    .model-select-wrap select:focus { border-color: var(--accent); }
+
+    .sidebar-divider { height: 1px; background: var(--border); margin: 14px 12px; }
+
+    .sessions-label { font-size: 11px; color: var(--text-muted); padding: 0 16px 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .sessions-list { flex: 1; overflow-y: auto; padding: 0 8px 12px; }
+    .sessions-list::-webkit-scrollbar { width: 4px; }
+    .sessions-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .session-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-muted);
+      transition: background 0.12s, color 0.12s;
+      gap: 6px;
+    }
+    .session-item:hover { background: var(--surface2); color: var(--text); }
+    .session-item.active { background: var(--surface2); color: var(--text); }
+    .session-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+
+    .btn-delete-session {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-muted); padding: 2px 4px; border-radius: 4px;
+      opacity: 0; transition: opacity 0.12s, color 0.12s;
+      flex-shrink: 0; line-height: 1;
+    }
+    .session-item:hover .btn-delete-session { opacity: 1; }
+    .btn-delete-session:hover { color: #e05c5c; }
+
+    /* ── Main ── */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .chat-header {
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface);
+    }
+    .chat-header .model-badge {
+      font-size: 12px; color: var(--text-muted);
+      background: var(--surface2); border: 1px solid var(--border);
+      padding: 3px 10px; border-radius: 20px;
+    }
+    .chat-header .session-title { font-size: 14px; font-weight: 500; flex: 1; }
+
+    .ws-status {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #555; flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .ws-status.connected    { background: #4caf50; }
+    .ws-status.connecting   { background: #ff9800; }
+    .ws-status.disconnected { background: #e05c5c; }
+
+    /* ── Messages ── */
+    .messages {
+      flex: 1; overflow-y: auto;
+      padding: 24px 0;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .messages::-webkit-scrollbar { width: 5px; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .msg-row {
+      display: flex;
+      padding: 0 24px;
+    }
+    .msg-row.user     { justify-content: flex-end; }
+    .msg-row.assistant { justify-content: flex-start; }
+
+    .bubble {
+      max-width: 72%;
+      padding: 11px 16px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .msg-row.user .bubble {
+      background: var(--user-bubble);
+      border-bottom-right-radius: 4px;
+      color: #ddd;
+    }
+    .msg-row.assistant .bubble {
+      background: var(--assistant-bubble);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+      color: var(--text);
+    }
+
+    .typing-indicator { display: flex; gap: 5px; align-items: center; padding: 4px 2px; }
+    .typing-indicator span {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--text-muted);
+      animation: bounce 1.2s infinite ease-in-out;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+      40%           { transform: translateY(-6px); opacity: 1; }
+    }
+
+    .empty-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: var(--text-muted); gap: 10px;
+      pointer-events: none;
+    }
+    .empty-state svg { opacity: 0.25; }
+    .empty-state p { font-size: 14px; }
+
+    /* ── Input ── */
+    .input-area {
+      padding: 16px 24px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .input-row {
+      display: flex; gap: 10px; align-items: flex-end;
+      max-width: 860px; margin: 0 auto;
+    }
+    .input-row textarea {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      padding: 11px 14px;
+      resize: none;
+      outline: none;
+      max-height: 180px;
+      line-height: 1.5;
+      transition: border-color 0.15s;
+    }
+    .input-row textarea:focus { border-color: var(--accent); }
+    .input-row textarea::placeholder { color: var(--text-muted); }
+
+    .btn-send {
+      background: var(--accent);
+      border: none; border-radius: 10px;
+      color: #fff; cursor: pointer;
+      padding: 10px 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, opacity 0.15s;
+      flex-shrink: 0;
+    }
+    .btn-send:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .input-hint { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 8px; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #333; color: var(--text);
+      padding: 9px 18px; border-radius: 8px;
+      font-size: 13px; opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none; z-index: 999;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h2>OpenRouter Chat</h2>
+      <p>Powered by OpenRouter API</p>
+    </div>
+
+    <button class="btn-new-chat" id="btnNewChat">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Chat
+    </button>
+
+    <div class="model-select-wrap">
+      <label for="modelSelect">Model</label>
+      <select id="modelSelect"></select>
+    </div>
+
+    <div class="sidebar-divider"></div>
+    <div class="sessions-label">Past Chats</div>
+    <div class="sessions-list" id="sessionsList"></div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="chat-header">
+      <div class="ws-status" id="wsStatus" title="WebSocket status"></div>
+      <span class="session-title" id="sessionTitle">New Chat</span>
+      <span class="model-badge" id="modelBadge">gpt-4.1-mini</span>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="empty-state" id="emptyState">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <p>Start a conversation</p>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <textarea id="msgInput" rows="1" placeholder="Send a message…"></textarea>
+        <button class="btn-send" id="btnSend" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+      <div class="input-hint">Enter to send · Shift+Enter for new line</div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────────
+const API_BASE = 'http://localhost:8000';
+const WS_BASE  = 'ws://localhost:8000';
+
+// ── Models — loaded from /models at runtime ───────────────────────────────
+let MODELS = [];
+
+// ── State ────────────────────────────────────────────────────────────────────
+let sessionId   = null;
+let currentModel = 'openai/gpt-4.1-mini';
+let ws          = null;
+let isWaiting   = false;
+
+// ── DOM refs ─────────────────────────────────────────────────────────────────
+const messagesEl   = document.getElementById('messages');
+const emptyState   = document.getElementById('emptyState');
+const msgInput     = document.getElementById('msgInput');
+const btnSend      = document.getElementById('btnSend');
+const btnNewChat   = document.getElementById('btnNewChat');
+const modelSelect  = document.getElementById('modelSelect');
+const sessionsList = document.getElementById('sessionsList');
+const sessionTitle = document.getElementById('sessionTitle');
+const modelBadge   = document.getElementById('modelBadge');
+const wsStatus     = document.getElementById('wsStatus');
+const toast        = document.getElementById('toast');
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  await fetchModels();
+  newSession();
+  loadSessions();
+}
+
+async function fetchModels() {
+  try {
+    const res = await fetch(`${API_BASE}/models`);
+    const data = await res.json();
+    MODELS = data.models ?? [];
+  } catch(e) {
+    console.warn('Could not load models from server', e);
+    MODELS = ['openai/gpt-4.1-mini'];
+  }
+  populateModels();
+}
+
+function populateModels() {
+  modelSelect.innerHTML = '';
+  MODELS.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    if (m === currentModel) opt.selected = true;
+    modelSelect.appendChild(opt);
+  });
+}
+
+// ── Session management ───────────────────────────────────────────────────────
+function generateUUID() {
+  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+}
+
+function newSession() {
+  if (ws) { ws.close(); ws = null; }
+  sessionId = generateUUID();
+  currentModel = modelSelect.value || 'openai/gpt-4.1-mini';
+  clearMessages();
+  sessionTitle.textContent = 'New Chat';
+  modelBadge.textContent = currentModel.split('/')[1] ?? currentModel;
+  connectWebSocket();
+}
+
+async function loadSession(id) {
+  if (ws) { ws.close(); ws = null; }
+  sessionId = id;
+  clearMessages();
+
+  try {
+    const res = await fetch(`${API_BASE}/history/${id}`);
+    const data = await res.json();
+    const msgs = data.messages ?? [];
+    msgs.forEach(m => appendMessage(m.role, m.content));
+
+    // Fetch session model
+    const sRes = await fetch(`${API_BASE}/session/${id}`);
+    const sData = await sRes.json();
+    if (sData.model) {
+      currentModel = sData.model;
+      modelSelect.value = currentModel;
+      modelBadge.textContent = currentModel.split('/')[1] ?? currentModel;
+    }
+    sessionTitle.textContent = sData.title ?? 'Chat';
+  } catch(e) {
+    showToast('Failed to load session');
+  }
+
+  connectWebSocket();
+  highlightSession(id);
+}
+
+async function loadSessions() {
+  try {
+    const res = await fetch(`${API_BASE}/sessions`);
+    const data = await res.json();
+    renderSessions(data.sessions ?? []);
+  } catch(e) {
+    console.warn('Could not load sessions', e);
+  }
+}
+
+function renderSessions(sessions) {
+  sessionsList.innerHTML = '';
+  sessions.forEach(s => {
+    const item = document.createElement('div');
+    item.className = 'session-item';
+    item.dataset.id = s.session_id;
+    if (s.session_id === sessionId) item.classList.add('active');
+
+    const label = document.createElement('span');
+    label.textContent = s.title || 'Untitled';
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-delete-session';
+    delBtn.title = 'Delete';
+    delBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+    delBtn.addEventListener('click', e => { e.stopPropagation(); deleteSession(s.session_id); });
+
+    item.appendChild(label);
+    item.appendChild(delBtn);
+    item.addEventListener('click', () => loadSession(s.session_id));
+    sessionsList.appendChild(item);
+  });
+}
+
+function highlightSession(id) {
+  document.querySelectorAll('.session-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.id === id);
+  });
+}
+
+async function deleteSession(id) {
+  try {
+    await fetch(`${API_BASE}/session/${id}`, { method: 'DELETE' });
+    if (id === sessionId) newSession();
+    loadSessions();
+  } catch(e) {
+    showToast('Failed to delete session');
+  }
+}
+
+// ── WebSocket ────────────────────────────────────────────────────────────────
+function connectWebSocket() {
+  setWsStatus('connecting');
+  ws = new WebSocket(`${WS_BASE}/ws/${sessionId}`);
+
+  ws.onopen = () => {
+    setWsStatus('connected');
+    btnSend.disabled = false;
+  };
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    if (data.type === 'message') {
+      removeTypingIndicator();
+      appendMessage(data.role, data.content);
+      isWaiting = false;
+      btnSend.disabled = false;
+
+      // Update session title if changed
+      if (data.title) {
+        sessionTitle.textContent = data.title;
+        loadSessions();
+      }
+    } else if (data.type === 'error') {
+      removeTypingIndicator();
+      showToast(data.message || 'Something went wrong');
+      isWaiting = false;
+      btnSend.disabled = false;
+    } else if (data.type === 'title_update') {
+      sessionTitle.textContent = data.title;
+      loadSessions();
+    }
+  };
+
+  ws.onerror = () => setWsStatus('disconnected');
+
+  ws.onclose = () => {
+    setWsStatus('disconnected');
+    btnSend.disabled = true;
+    // Reconnect after 2s if we still have a session
+    if (sessionId) setTimeout(connectWebSocket, 2000);
+  };
+}
+
+function setWsStatus(state) {
+  wsStatus.className = `ws-status ${state}`;
+  wsStatus.title = state.charAt(0).toUpperCase() + state.slice(1);
+}
+
+// ── Messaging ────────────────────────────────────────────────────────────────
+function sendMessage() {
+  const text = msgInput.value.trim();
+  if (!text || isWaiting || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+  appendMessage('user', text);
+  msgInput.value = '';
+  autoResize();
+  showTypingIndicator();
+  isWaiting = true;
+  btnSend.disabled = true;
+
+  ws.send(JSON.stringify({
+    type: 'message',
+    content: text,
+    model: modelSelect.value,
+    session_id: sessionId
+  }));
+}
+
+function appendMessage(role, content) {
+  emptyState.style.display = 'none';
+
+  const row = document.createElement('div');
+  row.className = `msg-row ${role}`;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = content;
+
+  row.appendChild(bubble);
+  messagesEl.appendChild(row);
+  scrollToBottom();
+}
+
+function showTypingIndicator() {
+  const row = document.createElement('div');
+  row.className = 'msg-row assistant';
+  row.id = 'typingRow';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+
+  row.appendChild(bubble);
+  messagesEl.appendChild(row);
+  scrollToBottom();
+}
+
+function removeTypingIndicator() {
+  const el = document.getElementById('typingRow');
+  if (el) el.remove();
+}
+
+function clearMessages() {
+  messagesEl.innerHTML = '';
+  messagesEl.appendChild(emptyState);
+  emptyState.style.display = '';
+}
+
+function scrollToBottom() {
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// ── UI helpers ───────────────────────────────────────────────────────────────
+function autoResize() {
+  msgInput.style.height = 'auto';
+  msgInput.style.height = Math.min(msgInput.scrollHeight, 180) + 'px';
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ── Event listeners ──────────────────────────────────────────────────────────
+btnSend.addEventListener('click', sendMessage);
+
+msgInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+msgInput.addEventListener('input', autoResize);
+
+btnNewChat.addEventListener('click', () => {
+  newSession();
+  loadSessions();
+});
+
+modelSelect.addEventListener('change', () => {
+  currentModel = modelSelect.value;
+  modelBadge.textContent = currentModel.split('/')[1] ?? currentModel;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'model_change', model: currentModel }));
+  }
+});
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
+
