@@ -1,3 +1,5 @@
+import uuid
+
 from main import new_chat, model_chat
 from db_init import send_message_to_db, get_chat_history, update_message_state, update_session_title, supabase
 from fastapi import FastAPI, BackgroundTasks
@@ -10,7 +12,7 @@ class WebhookPayload(BaseModel):
     record: dict
 
 
-def process_message(msg_id: int, current_session_id: str):
+def process_message(msg_id: int, current_session_id: uuid.UUID):
     try:
         # Get full chat history for context
         history = get_chat_history(current_session_id)
