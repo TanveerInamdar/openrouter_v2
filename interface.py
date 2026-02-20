@@ -48,7 +48,7 @@ st.title(f"{x}")
 history = get_chat_history(current_session_id)
 rows = [(msg["role"], msg["content"]) for msg in history] if history else []
 
-current_model = 'openai/gpt-oss-20b:free'
+current_model = 'openai/gpt-4.1-mini'
 session_metadata = supabase.table("sessions").select("model").eq("session_id", current_session_id).execute()
 if session_metadata.data and session_metadata.data[0]["model"]:
     current_model = session_metadata.data[0]["model"]
