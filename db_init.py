@@ -6,9 +6,8 @@ load_dotenv()
 url: str = os.getenv("SUPABASE_URL")
 key: str = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
-random_uuid = uuid.uuid4()
 
-def send_message_to_db(session_id: uuid, role:str, message: str, state:str):
+def send_message_to_db(session_id: uuid.UUID, role:str, message: str, state:str):
     try:
         response = (
             supabase.table("messages")
@@ -26,7 +25,7 @@ def send_message_to_db(session_id: uuid, role:str, message: str, state:str):
         return None
 
 
-def get_chat_history(session_id: uuid):
+def get_chat_history(session_id: uuid.UUID):
     try:
         response = (
             supabase.table("messages")
@@ -56,7 +55,7 @@ def get_chat_titles():
         return None
 
 
-def create_session(session_id: uuid, title: str, model: str):
+def create_session(session_id: uuid.UUID, title: str, model: str):
     try:
         response = (
             supabase.table("sessions")
@@ -73,7 +72,7 @@ def create_session(session_id: uuid, title: str, model: str):
         return None
 
 
-def update_session_title(session_id: uuid, title: str):
+def update_session_title(session_id: uuid.UUID, title: str):
     try:
         response = (
             supabase.table("sessions")
@@ -87,7 +86,7 @@ def update_session_title(session_id: uuid, title: str):
         return None
 
 
-def update_session_model(session_id: uuid, model: str):
+def update_session_model(session_id: uuid.UUID, model: str):
     try:
         response = (
             supabase.table("sessions")
