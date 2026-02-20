@@ -1,5 +1,6 @@
 import uuid
 import json
+import asyncio
 
 from main import new_chat, model_chat
 from db_init import (
@@ -30,26 +31,30 @@ def serve_ui():
     return FileResponse("frontend/chat_interface.html")
 
 
+# ── Connection registry ──────────────────────────────────────────────────────
+# Maps session_id -> (WebSocket, asyncio event loop)
+# Used by the webhook to push responses back to the right browser tab
+active_connections: dict[str, tuple[WebSocket, asyncio.AbstractEventLoop]] = {}
+
+
+# ── Webhook handler (called by Supabase on new Pending message) ──────────────
+
 class WebhookPayload(BaseModel):
     record: dict
 
 
-def process_message(msg_id: int, current_session_id: uuid.UUID):
+def process_message(msg_id: int, current_session_id: str):
     try:
-        # Get full chat history for context
         history = get_chat_history(current_session_id)
 
-        # Get model and title for this session
         session_metadata = supabase.table("sessions").select("model, title").eq("session_id", current_session_id).single().execute()
         model_name = session_metadata.data["model"]
-        print(model_name)
+        print(f"Processing with model: {model_name}")
 
-        # Build query list for OpenRouter from history
         query = [{"role": msg["role"].lower(), "content": msg["content"]} for msg in history]
         result = model_chat(query, model_name)
         print("Called API with model: ", model_name)
 
-        # Mark user message Completed and insert assistant response
         if result != "ERROR":
             update_message_state(msg_id, "Completed")
             send_message_to_db(current_session_id, "assistant", result, "Completed")
@@ -57,25 +62,45 @@ def process_message(msg_id: int, current_session_id: uuid.UUID):
         else:
             update_message_state(msg_id, "Failed")
             print(f"Worker Failed for message id {msg_id}")
+            _push_to_ws(current_session_id, {"type": "error", "message": "Model returned an error."})
+            return
 
         # Title generation
         title_result = session_metadata.data["title"]
+        new_title = title_result
         print(f"Current title: {title_result}")
-        if title_result == "New Chat" and result != "ERROR":
-            x = new_chat(result)
-            update_session_title(current_session_id, x)
-            print("title changed to ", x)
+        if title_result == "New Chat":
+            new_title = new_chat(result)
+            update_session_title(current_session_id, new_title)
+            print("Title changed to:", new_title)
+
+        _push_to_ws(current_session_id, {
+            "type": "message",
+            "role": "assistant",
+            "content": result,
+            "title": new_title
+        })
 
     except Exception as e:
         print(f"ERROR: {e}")
         update_message_state(msg_id, "Failed")
+        _push_to_ws(current_session_id, {"type": "error", "message": str(e)})
+
+
+def _push_to_ws(session_id: str, payload: dict):
+    """Thread-safe: push a message to the WebSocket for this session if connected."""
+    entry = active_connections.get(session_id)
+    if not entry:
+        print(f"No active WS for session {session_id}, skipping push")
+        return
+    ws, loop = entry
+    asyncio.run_coroutine_threadsafe(ws.send_text(json.dumps(payload)), loop)
 
 
 @app.post("/process-message")
 async def webhook(payload: WebhookPayload, background_tasks: BackgroundTasks):
     record = payload.record
 
-    # Only process Pending messages
     if record.get("state") != "Pending":
         return {"status": "skipped"}
 
@@ -87,12 +112,11 @@ async def webhook(payload: WebhookPayload, background_tasks: BackgroundTasks):
     return {"status": "ok"}
 
 
-# ── REST endpoints for the frontend ─────────────────────────────────────────
+# ── REST endpoints ───────────────────────────────────────────────────────────
 
 @app.get("/models")
 def list_models():
     from model_list import final_models
-    final_models.sort()
     return {"models": final_models}
 
 
@@ -110,7 +134,7 @@ def get_session(session_id: str):
 
 
 @app.delete("/session/{session_id}")
-def delete_session(session_id: str):
+def delete_session_route(session_id: str):
     supabase.table("messages").delete().eq("session_id", session_id).execute()
     supabase.table("sessions").delete().eq("session_id", session_id).execute()
     return {"status": "deleted"}
@@ -122,100 +146,51 @@ def chat_history(session_id: str):
     return {"messages": msgs}
 
 
-# ── WebSocket chat endpoint ──────────────────────────────────────────────────
+class SendMessagePayload(BaseModel):
+    session_id: str
+    content: str
+    model: str = "openai/gpt-4.1-mini"
 
-def process_message_ws(msg_id: int, current_session_id: str, ws_send_callback):
-    """Synchronous worker — runs in a background thread via BackgroundTasks."""
-    try:
-        history = get_chat_history(current_session_id)
-        session_meta = supabase.table("sessions").select("model, title").eq("session_id", current_session_id).single().execute()
-        model_name = session_meta.data["model"]
 
-        query = [{"role": m["role"].lower(), "content": m["content"]} for m in history]
-        result = model_chat(query, model_name)
+@app.post("/send-message")
+def send_message_route(payload: SendMessagePayload):
+    """
+    Frontend calls this to save a user message as Pending.
+    Supabase webhook then fires /process-message to handle it.
+    """
+    existing = supabase.table("sessions").select("session_id").eq("session_id", payload.session_id).execute()
+    if not existing.data:
+        create_session(payload.session_id, "New Chat", payload.model)
+    else:
+        update_session_model(payload.session_id, payload.model)
 
-        if result != "ERROR":
-            update_message_state(msg_id, "Completed")
-            send_message_to_db(current_session_id, "assistant", result, "Completed")
-        else:
-            update_message_state(msg_id, "Failed")
-            ws_send_callback({"type": "error", "message": "Model returned an error."})
-            return
+    db_res = send_message_to_db(payload.session_id, "User", payload.content, "Pending")
+    if not db_res or not db_res.data:
+        return {"status": "error", "message": "Failed to save message"}
 
-        # Title generation
-        current_title = session_meta.data["title"]
-        new_title = current_title
-        if current_title == "New Chat":
-            new_title = new_chat(result)
-            update_session_title(current_session_id, new_title)
+    msg_id = db_res.data[0]["id"]
+    print(f"Message saved with id {msg_id} for session {payload.session_id}")
+    return {"status": "ok", "msg_id": msg_id}
 
-        ws_send_callback({"type": "message", "role": "assistant", "content": result, "title": new_title})
 
-    except Exception as e:
-        print(f"WS Worker ERROR: {e}")
-        update_message_state(msg_id, "Failed")
-        ws_send_callback({"type": "error", "message": str(e)})
-
+# ── WebSocket — receive-only, used to push responses back to browser ─────────
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await websocket.accept()
-    print(f"WS connected: {session_id}")
-
-    # Buffer for outgoing messages from the background thread
-    import asyncio
     loop = asyncio.get_event_loop()
-    queue: asyncio.Queue = asyncio.Queue()
-
-    def enqueue(payload: dict):
-        loop.call_soon_threadsafe(queue.put_nowait, payload)
-
-    async def sender():
-        while True:
-            msg = await queue.get()
-            if msg is None:
-                break
-            await websocket.send_text(json.dumps(msg))
-
-    sender_task = asyncio.create_task(sender())
+    active_connections[session_id] = (websocket, loop)
+    print(f"WS connected: {session_id}")
 
     try:
         while True:
+            # Keep connection alive; handle model change notifications from frontend
             raw = await websocket.receive_text()
             data = json.loads(raw)
-
             if data.get("type") == "model_change":
                 update_session_model(session_id, data["model"])
-                continue
-
-            if data.get("type") == "message":
-                content = data.get("content", "").strip()
-                model   = data.get("model", "openai/gpt-4.1-mini")
-                if not content:
-                    continue
-
-                # Ensure session exists
-                existing = supabase.table("sessions").select("session_id").eq("session_id", session_id).execute()
-                if not existing.data:
-                    create_session(session_id, "New Chat", model)
-                else:
-                    update_session_model(session_id, model)
-
-                # Persist user message
-                db_res = send_message_to_db(session_id, "User", content, "Pending")
-                msg_id = db_res.data[0]["id"] if db_res and db_res.data else None
-
-                if msg_id is None:
-                    await websocket.send_text(json.dumps({"type": "error", "message": "DB error saving message"}))
-                    continue
-
-                # Run model call in thread pool so we don't block the event loop
-                import concurrent.futures
-                executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-                loop.run_in_executor(executor, process_message_ws, msg_id, session_id, enqueue)
 
     except WebSocketDisconnect:
         print(f"WS disconnected: {session_id}")
     finally:
-        queue.put_nowait(None)
-        await sender_task
+        active_connections.pop(session_id, None)
