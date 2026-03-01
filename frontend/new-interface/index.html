@@ -6,32 +6,66 @@
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0">
     <title>ChatGPT</title>
-    <link rel="stylesheet" href="style.css">
+    <!-- Markdown parser for rendering assistant responses -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="/frontend/new-interface/style.css">
 </head>
 
 <body class="light-mode">
+
+    <!-- ── Sidebar (starts collapsed) ─────────────────────────────── -->
     <div class="sidebar collapsed">
+
+        <!-- Hamburger toggle – position:fixed so it stays visible even when sidebar width is 0 -->
         <button class="sidebar-toggle-btn" id="sidebar-toggle">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
+
+        <!-- Sidebar inner content (fades out when collapsed) -->
         <div class="sidebar-content">
+
+            <!-- New chat button -->
             <button class="new-chat-btn" id="new-conversation-btn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 <span>New chat</span>
             </button>
-            <div class="sidebar-section-label">Past Chats</div>
-            <div class="conversation-list">
-                <p class="conversation-content">No conversation yet</p>
+
+            <!-- Model dropdown with search — replaces the native <select> -->
+            <div class="model-select-wrap">
+                <label>Model</label>
+                <div class="model-dropdown">
+                    <button class="model-dropbtn" id="modelDropBtn">gpt-4.1-mini</button>
+                    <div class="model-dropdown-content" id="modelDropdown">
+                        <input type="text" placeholder="Search models..." id="modelSearchInput">
+                        <!-- JS populates clickable model items here -->
+                    </div>
+                </div>
             </div>
+
+            <!-- Scrollable list of past chat sessions -->
+            <div class="sidebar-section-label">Past Chats</div>
+            <div class="conversation-list" id="sessionsList"></div>
         </div>
     </div>
+
+    <!-- ── Main chat area ─────────────────────────────────────────── -->
     <div class="chat-container">
         <div class="chat-content">
+
+            <!-- Top bar: session title, model badge, WS indicator, dark-mode toggle -->
             <div class="chat-header">
-                <button class="model-selector">
-                    ChatGPT <span class="model-version">3.5</span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-                </button>
+                <div class="header-left">
+                    <!-- Green / orange / red dot showing WebSocket connection state -->
+                    <div class="ws-status" id="wsStatus" title="WebSocket status"></div>
+                    <!-- Current session title (updates after first assistant reply) -->
+                    <button class="model-selector" id="sessionTitle">
+                        New Chat
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <!-- Shows the short model name, e.g. "gpt-4.1-mini" -->
+                    <span class="model-badge" id="modelBadge">gpt-4.1-mini</span>
+                </div>
+                <!-- Light / dark mode toggle switch -->
                 <div class="mode-toggle">
                     <label class="switch">
                         <input type="checkbox"
@@ -40,12 +74,17 @@
                     </label>
                 </div>
             </div>
+
+            <!-- Scrollable message area -->
             <div class="chat-box" id="chat-box">
+                <!-- Placeholder shown when no messages exist yet -->
                 <div class="empty-state" id="empty-state">
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.3"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                     <p>How can I help you today?</p>
                 </div>
             </div>
+
+            <!-- Bottom input bar -->
             <div class="input-container">
                 <div class="input-wrap">
                     <input type="text" id="user-input"
@@ -54,11 +93,14 @@
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
                     </button>
                 </div>
-                
             </div>
         </div>
     </div>
-    <script src="script.js"></script>
+
+    <!-- Floating toast for transient notifications -->
+    <div class="toast" id="toast"></div>
+
+    <script src="/frontend/new-interface/script.js"></script>
 </body>
 
 </html>

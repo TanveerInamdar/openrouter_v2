@@ -1,9 +1,25 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   RESET
+   ══════════════════════════════════════════════════════════════════════════════
+   Remove default browser margins/padding and switch every element to
+   border-box sizing so that padding and borders are included in width/height
+   calculations. This prevents unexpected overflow and simplifies layout math.
+*/
 *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   BASE / THEME COLOURS
+   ══════════════════════════════════════════════════════════════════════════════
+   The app supports two colour schemes — light and dark — toggled by swapping
+   the "light-mode" / "dark-mode" class on <body> via JS.
+   Most themed rules use the pattern `.light-mode .component` or
+   `.dark-mode .component` so that a single class swap on <body> cascades
+   colour changes throughout the entire UI.
+*/
 body {
     font-family: 'Söhne', 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
     margin: 0;
@@ -25,6 +41,19 @@ body.dark-mode {
     color: #ececec;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   SIDEBAR
+   ══════════════════════════════════════════════════════════════════════════════
+   Fixed left-hand navigation panel (260 px wide when open).
+   • position: fixed keeps it pinned to the left viewport edge regardless of scroll.
+   • overflow-x: hidden hides content that overflows when the width animates to 0.
+   • The "collapsed" class sets width to 0, effectively hiding the panel.
+     A 0.3 s CSS transition on width provides a smooth open/close animation.
+   • flex-direction: column stacks children vertically: toggle → new-chat → model
+     picker → session list.
+   • z-index: 1 keeps the sidebar above the main chat container but below the
+     hamburger button (z-index: 10).
+*/
 .sidebar {
     width: 260px;
     height: 100vh;
@@ -45,14 +74,20 @@ body.dark-mode {
     border-right-color: #e5e5e5;
 }
 
+/* When collapsed: width shrinks to 0 and the border is removed so there's
+   no visible 1 px line left behind. The sidebar-content inside fades out
+   separately (see .sidebar.collapsed .sidebar-content below). */
 .sidebar.collapsed {
     width: 0;
     border-right: none;
 }
 
+/* ── Sidebar toggle (hamburger) ────────────────────────────────────────────── */
+/* position:fixed so it remains visible even when sidebar width is 0.
+   JS moves its `left` between 12px (collapsed) and 220px (open). */
 .sidebar-toggle-btn {
     position: fixed;
-    top: 16px;
+    top: 10.5px;
     left: 12px;
     z-index: 10;
     width: 36px;
@@ -79,6 +114,8 @@ body.dark-mode {
     background-color: rgba(0,0,0,0.06);
 }
 
+/* ── Sidebar inner content ─────────────────────────────────────────────────── */
+/* Fades out and disables pointer events when sidebar is collapsed */
 .sidebar-content {
     padding-top: 60px;
     display: flex;
@@ -93,6 +130,7 @@ body.dark-mode {
     pointer-events: none;
 }
 
+/* ── New-chat button (inside sidebar) ──────────────────────────────────────── */
 .new-chat-btn {
     display: flex;
     align-items: center;
@@ -121,6 +159,7 @@ body.dark-mode {
     background-color: rgba(0,0,0,0.04);
 }
 
+/* ── Sidebar section label ("Past Chats") ──────────────────────────────────── */
 .sidebar-section-label {
     font-size: 11px;
     font-weight: 600;
@@ -130,18 +169,226 @@ body.dark-mode {
     padding: 16px 16px 8px;
 }
 
+/* ── Conversation list (scrollable session history) ────────────────────────── */
 .conversation-list {
     flex: 1;
     overflow-y: auto;
     padding: 0 12px;
 }
 
-.conversation-content {
-    color: #777;
-    font-size: 13px;
-    padding: 8px 8px;
+/* ── Model searchable dropdown (inside sidebar) ──────────────────────────────── */
+.model-select-wrap {
+    padding: 12px 12px 0;
+}
+.model-select-wrap label {
+    font-size: 11px;
+    color: #888;
+    display: block;
+    margin-bottom: 5px;
 }
 
+/* Wrapper that establishes the positioning context for the dropdown panel */
+.model-dropdown {
+    position: relative;
+    width: 100%;
+}
+
+/* Trigger button — shows the currently selected model name */
+.model-dropbtn {
+    width: 100%;
+    background: #2a2a2a;
+    color: #ddd;
+    border: 1px solid #3e3e3e;
+    border-radius: 8px;
+    padding: 8px 28px 8px 10px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+    text-align: left;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+.model-dropbtn:hover {
+    border-color: #666;
+}
+.light-mode .model-dropbtn {
+    background-color: #e8e8e8;
+    color: #333;
+    border-color: #d0d0d0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+
+/* Dropdown panel — hidden by default, shown when .show is added via JS */
+.model-dropdown-content {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 100%;
+    max-height: 240px;
+    overflow-y: auto;
+    background-color: #2a2a2a;
+    border: 1px solid #3e3e3e;
+    border-radius: 8px;
+    z-index: 20;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.model-dropdown-content.show {
+    display: block;
+}
+.light-mode .model-dropdown-content {
+    background-color: #f6f6f6;
+    border-color: #d0d0d0;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+}
+
+/* Search input inside the dropdown */
+.model-dropdown-content input[type="text"] {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-bottom: 1px solid #3e3e3e;
+    background: transparent;
+    color: #ddd;
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+}
+.model-dropdown-content input[type="text"]::placeholder {
+    color: #777;
+}
+.light-mode .model-dropdown-content input[type="text"] {
+    color: #333;
+    border-bottom-color: #d0d0d0;
+}
+
+/* Individual model items in the dropdown list */
+.model-dropdown-content .model-item {
+    display: block;
+    padding: 8px 10px;
+    color: #ccc;
+    font-size: 12px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.1s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.model-dropdown-content .model-item:hover {
+    background-color: rgba(255,255,255,0.08);
+    color: #fff;
+}
+.model-dropdown-content .model-item.active {
+    background-color: rgba(255,255,255,0.1);
+    color: #fff;
+}
+.light-mode .model-dropdown-content .model-item {
+    color: #333;
+}
+.light-mode .model-dropdown-content .model-item:hover {
+    background-color: rgba(0,0,0,0.05);
+    color: #111;
+}
+.light-mode .model-dropdown-content .model-item.active {
+    background-color: rgba(0,0,0,0.07);
+    color: #111;
+}
+
+/* Scrollbar for the dropdown list */
+.model-dropdown-content::-webkit-scrollbar {
+    width: 5px;
+}
+.model-dropdown-content::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 3px;
+}
+
+/* ── Session items (individual chat entries in sidebar) ─────────────────────── */
+.session-item {
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #999;
+    font-size: 13px;
+    transition: background 0.12s, color 0.12s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+.session-item:hover {
+    background: rgba(255,255,255,0.06);
+    color: #ececec;
+}
+.session-item.active {
+    background: rgba(255,255,255,0.08);
+    color: #ececec;
+}
+.light-mode .session-item:hover {
+    background: rgba(0,0,0,0.04);
+    color: #333;
+}
+.light-mode .session-item.active {
+    background: rgba(0,0,0,0.06);
+    color: #333;
+}
+.session-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+/* ── Delete-session button (appears on hover) ──────────────────────────────── */
+.btn-delete-session {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #666;
+    padding: 2px 4px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.12s, color 0.12s;
+    flex-shrink: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+}
+.session-item:hover .btn-delete-session {
+    opacity: 1;
+}
+.btn-delete-session:hover {
+    color: #e05c5c;
+}
+
+/* ── Toast notification ────────────────────────────────────────────────────── */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: #e8e8e8;
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 999;
+}
+.toast.show {
+    opacity: 1;
+}
+
+/* ── Chat container (main area beside sidebar) ─────────────────────────────── */
+/* JS adjusts width & margin-left when sidebar toggles */
 .chat-container {
     width: 100%;
     height: 100vh;
@@ -162,15 +409,19 @@ body.dark-mode {
     height: 100%;
 }
 
+/* ── Chat header (top bar) ─────────────────────────────────────────────────── */
+/* padding-left: 56px by default to clear the fixed hamburger button when
+   sidebar is collapsed (12px left + 36px width + 8px gap).
+   JS resets to 20px when sidebar is open. */
 .chat-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     height: 56px;
-    padding: 0 20px;
+    padding: 0 20px 0 56px;
     background-color: #212121;
     border-bottom: 1px solid #2e2e2e;
-    transition: background-color 0.3s, border-color 0.3s;
+    transition: background-color 0.3s, border-color 0.3s, padding-left 0.3s;
 }
 
 .light-mode .chat-header {
@@ -178,6 +429,43 @@ body.dark-mode {
     border-bottom-color: #e5e5e5;
 }
 
+/* Header left group: WS dot + session title + model badge */
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ── WebSocket status indicator ────────────────────────────────────────────── */
+.ws-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #555;
+    flex-shrink: 0;
+    transition: background 0.3s;
+}
+.ws-status.connected    { background: #4caf50; }
+.ws-status.connecting   { background: #ff9800; }
+.ws-status.disconnected { background: #e05c5c; }
+
+/* ── Model badge (pill next to title) ──────────────────────────────────────── */
+.model-badge {
+    font-size: 11px;
+    color: #888;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid #3e3e3e;
+    padding: 2px 10px;
+    border-radius: 20px;
+    margin-left: 8px;
+}
+.light-mode .model-badge {
+    background: rgba(0,0,0,0.04);
+    border-color: #d9d9d9;
+    color: #777;
+}
+
+/* ── Session title / model selector button ─────────────────────────────────── */
 .model-selector {
     display: flex;
     align-items: center;
@@ -213,6 +501,7 @@ body.dark-mode {
     opacity: 0.5;
 }
 
+/* ── Dark / light mode toggle switch ───────────────────────────────────────── */
 .mode-toggle {
     display: flex;
     align-items: center;
@@ -269,7 +558,7 @@ input:checked+.slider:before {
     border-radius: 34px;
 }
 
-/* ── Chat box ── */
+/* ── Chat box (scrollable message area) ────────────────────────────────────── */
 .chat-box {
     display: flex;
     flex-direction: column;
@@ -292,6 +581,7 @@ input:checked+.slider:before {
     border-radius: 3px;
 }
 
+/* ── Empty state (shown when no messages yet) ──────────────────────────────── */
 .empty-state {
     flex: 1;
     display: flex;
@@ -311,7 +601,7 @@ input:checked+.slider:before {
     color: #999;
 }
 
-/* ── Message rows ── */
+/* ── Message rows (user & assistant bubbles) ───────────────────────────────── */
 .msg-row {
     width: 100%;
     max-width: 720px;
@@ -321,6 +611,7 @@ input:checked+.slider:before {
     align-items: flex-start;
 }
 
+/* Avatar circle */
 .msg-row .msg-icon {
     width: 28px;
     height: 28px;
@@ -342,6 +633,7 @@ input:checked+.slider:before {
     background: #19c37d;
 }
 
+/* Message body (rendered markdown for assistant, plain text for user) */
 .msg-row .msg-body {
     flex: 1;
     font-size: 15px;
@@ -360,6 +652,7 @@ input:checked+.slider:before {
     color: #374151;
 }
 
+/* ── Message body typography ───────────────────────────────────────────────── */
 .msg-body p {
     margin: 0 0 12px 0;
 }
@@ -380,6 +673,7 @@ input:checked+.slider:before {
     line-height: 1.6;
 }
 
+/* Inline code */
 .msg-body code {
     font-family: 'Söhne Mono', 'Cascadia Code', 'Fira Code', monospace;
     font-size: 13px;
@@ -391,6 +685,7 @@ input:checked+.slider:before {
     background: rgba(0,0,0,0.07);
 }
 
+/* Code blocks */
 .msg-body pre {
     background: #0d0d0d;
     border-radius: 8px;
@@ -410,6 +705,7 @@ input:checked+.slider:before {
     line-height: 1.5;
 }
 
+/* Blockquotes */
 .msg-body blockquote {
     border-left: 3px solid #565869;
     margin: 10px 0;
@@ -421,6 +717,7 @@ input:checked+.slider:before {
     color: #666;
 }
 
+/* Headings inside messages */
 .msg-body h1, .msg-body h2, .msg-body h3 {
     margin: 16px 0 8px;
     font-weight: 600;
@@ -429,6 +726,7 @@ input:checked+.slider:before {
 .msg-body h2 { font-size: 17px; }
 .msg-body h3 { font-size: 15px; }
 
+/* Horizontal rules */
 .msg-body hr {
     border: none;
     border-top: 1px solid #3e3e3e;
@@ -438,7 +736,7 @@ input:checked+.slider:before {
     border-top-color: #e0e0e0;
 }
 
-/* ── Typing indicator ── */
+/* ── Typing indicator (bouncing dots while waiting for response) ───────────── */
 .typing-indicator {
     display: flex;
     gap: 5px;
@@ -459,7 +757,7 @@ input:checked+.slider:before {
     40%           { transform: translateY(-6px); opacity: 1; }
 }
 
-/* ── Input area ── */
+/* ── Input area (bottom bar with text field + send button) ─────────────────── */
 .input-container {
     display: flex;
     flex-direction: column;
@@ -479,6 +777,7 @@ input:checked+.slider:before {
     text-align: center;
 }
 
+/* Rounded pill wrapper for the text input + send button */
 .input-wrap {
     display: flex;
     align-items: center;
@@ -505,6 +804,7 @@ input:checked+.slider:before {
     box-shadow: 0 2px 16px rgba(0,0,0,0.12);
 }
 
+/* Text input field */
 .input-wrap input[type="text"] {
     flex: 1;
     padding: 10px 0;
@@ -524,6 +824,7 @@ input:checked+.slider:before {
     color: #888;
 }
 
+/* Circular send button */
 .input-wrap #send-button {
     width: 36px;
     height: 36px;
@@ -551,4 +852,3 @@ input:checked+.slider:before {
 .light-mode .input-wrap #send-button:hover {
     background-color: #000;
 }
-

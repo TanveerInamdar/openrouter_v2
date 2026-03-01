@@ -347,4 +347,14 @@ openai/gpt-3.5-turbo
 models = [m.strip() for m in models.splitlines() if m.strip()]
 
 final_models = models
+free_models=[]
+for model in final_models:
+    if "free" in model:
 
+        free_models.append(model)
+        final_models.remove(model)
+
+final_models.sort()
+free_models.sort()
+
+print(final_models)
