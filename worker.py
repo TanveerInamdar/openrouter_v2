@@ -28,7 +28,7 @@ app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
 @app.get("/")
 def serve_ui():
-    return FileResponse("frontend/chat_interface.html")
+    return FileResponse("frontend/new-interface/index.html")
 
 
 # ── Connection registry ──────────────────────────────────────────────────────
@@ -186,11 +186,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         while True:
             # Keep connection alive; handle model change notifications from frontend
             raw = await websocket.receive_text()
-            data = json.loads(raw)
-            if data.get("type") == "model_change":
-                update_session_model(session_id, data["model"])
-
     except WebSocketDisconnect:
         print(f"WS disconnected: {session_id}")
     finally:
         active_connections.pop(session_id, None)
+
+
+@app.post("/session/{session_id}/change-model")
+def change_model(session_id: str, model: str):
+    update_session_model(session_id, model)
+    return {"status": "ok"}
