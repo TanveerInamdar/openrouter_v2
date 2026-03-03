@@ -14,6 +14,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from model_list import final_models
+
 app = FastAPI()
 
 app.add_middleware(
@@ -43,7 +45,7 @@ class WebhookPayload(BaseModel):
     record: dict
 
 
-def process_message(msg_id: int, current_session_id: str):
+def process_message(msg_id: int, current_session_id: uuid.UUID):
     try:
         history = get_chat_history(current_session_id)
 
@@ -87,9 +89,9 @@ def process_message(msg_id: int, current_session_id: str):
         _push_to_ws(current_session_id, {"type": "error", "message": str(e)})
 
 
-def _push_to_ws(session_id: str, payload: dict):
+def _push_to_ws(session_id: uuid.UUID, payload: dict):
     """Thread-safe: push a message to the WebSocket for this session if connected."""
-    entry = active_connections.get(session_id)
+    entry = active_connections.get(str(session_id))
     if not entry:
         print(f"No active WS for session {session_id}, skipping push")
         return
@@ -116,7 +118,6 @@ async def webhook(payload: WebhookPayload, background_tasks: BackgroundTasks):
 
 @app.get("/models")
 def list_models():
-    from model_list import final_models
     return {"models": final_models}
 
 
@@ -141,13 +142,13 @@ def delete_session_route(session_id: str):
 
 
 @app.get("/history/{session_id}")
-def chat_history(session_id: str):
+def chat_history(session_id: uuid.UUID):
     msgs = get_chat_history(session_id) or []
     return {"messages": msgs}
 
 
 class SendMessagePayload(BaseModel):
-    session_id: str
+    session_id: uuid.UUID
     content: str
     model: str = "openai/gpt-4.1-mini"
 
@@ -193,6 +194,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
 
 @app.post("/session/{session_id}/change-model")
-def change_model(session_id: str, model: str):
+def change_model(session_id: uuid.UUID, model: str):
     update_session_model(session_id, model)
     return {"status": "ok"}
