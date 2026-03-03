@@ -14,9 +14,10 @@ let isWaiting    = false;   // true while waiting for assistant response
 const chatBox          = document.getElementById('chat-box');
 const userInput        = document.getElementById('user-input');
 const sendButton       = document.getElementById('send-button');
-const sidebarToggle    = document.getElementById('sidebar-toggle');
-const modeToggle       = document.getElementById('mode-toggle-checkbox');
+const sidebarToggle      = document.getElementById('sidebar-toggle');
+const modeToggle         = document.getElementById('mode-toggle-checkbox');
 const newConversationBtn = document.getElementById('new-conversation-btn');
+const deleteConversationBtn = document.getElementById('delete-conversation-btn');
 const modelDropBtn     = document.getElementById('modelDropBtn');
 const modelDropdown    = document.getElementById('modelDropdown');
 const modelSearchInput = document.getElementById('modelSearchInput');
@@ -391,6 +392,11 @@ sidebarToggle.addEventListener('click', () => {
 newConversationBtn.addEventListener('click', () => {
     newSession();
     loadSessions();
+});
+
+deleteConversationBtn.addEventListener('click', () => {
+    if (!sessionId) return;
+    deleteSession(sessionId);
 });
 
 // Toggle the searchable model dropdown open/closed

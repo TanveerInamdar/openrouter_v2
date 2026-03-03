@@ -159,6 +159,37 @@ body.dark-mode {
     background-color: rgba(0,0,0,0.04);
 }
 
+/* Delete-current-chat button (inside sidebar, under New chat) */
+.delete-chat-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 12px 12px;
+    padding: 8px 14px;
+    background: none;
+    border: 1px solid #3e3e3e;
+    border-radius: 10px;
+    color: #f28b82;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+    white-space: nowrap;
+}
+.delete-chat-btn:hover {
+    background-color: rgba(242,139,130,0.12);
+    border-color: #f28b82;
+}
+.light-mode .delete-chat-btn {
+    color: #c0392b;
+    border-color: #e0b4af;
+}
+.light-mode .delete-chat-btn:hover {
+    background-color: rgba(192,57,43,0.08);
+    border-color: #c0392b;
+}
+
 /* ── Sidebar section label ("Past Chats") ──────────────────────────────────── */
 .sidebar-section-label {
     font-size: 11px;
